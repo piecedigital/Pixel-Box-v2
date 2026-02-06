@@ -20,6 +20,8 @@ function App() {
     ratio;
     /** @type {number} */
     #cursorOutlineWidth = 4;
+    /** @type {boolean} */
+    painting = false;
 
     constructor() {
       if (typeof window != "undefined") {
@@ -37,6 +39,9 @@ function App() {
 
         // Affects the thickness of the outline for the cursor
         this.#ctx.lineWidth = this.#cursorOutlineWidth;
+        for (let i = 0; i < (this.ratioFactorY * this.ratioFactorY) - 1; i++) {
+          this.#pixels[0][i] = RenderScene.rgbToHex(255, 255, 255);
+        }
 
         document.querySelector("#render-scene").appendChild(this.#renderer);
 
@@ -78,19 +83,19 @@ function App() {
      */
     #indexToCoords(index) {
       const x = index % this.ratioFactorY;
-      const y = index / this.ratioFactorY;
+      const y = Math.floor(index / this.ratioFactorY);
       return [x, y];
     }
 
     /**
-     * Takes XY coords in an array and converts it too an index in an array
+     * Takes XY coords in an array and converts it too an index of an array
      *
      * @param {[number, number]} coords Represents XY coordinates
      * @returns {number}
      */
     #coordsToIndex(coords) {
-      const x = coords[1];
-      const y = coords[0];
+      const x = coords[0];
+      const y = coords[1];
 
       return x + (this.ratioFactorY * (y % this.ratioFactorY))
     }
@@ -111,21 +116,43 @@ function App() {
     }
 
     /**
+     * Set pixel parameter
+     *
+     * @param {[number, number]} coords Represents XY coordinates
+     * @param {string} color Hex color code
+     */
+    SetPixel(coords, color) {
+      // console.log("set pixel");
+      this.#pixels[0][this.#coordsToIndex(coords)] = color || this.#color;
+    }
+
+    /**
      * Draws a square based on the privided pixel parameter
      *
      * @param {[number, number]} coords Represents XY coordinates
      * @param {string} color Hex color code
      */
     DrawPixel(coords, color) {
-      console.log("making pixel");
-      // !! redo this logic for positional awareness
-      this.#pixels[0].push(this.#color);
+      // console.log("making pixel");
       this.#ctx.fillStyle = color;
+      // this old logic compensated for the width of the cursor, but the cursor is currently inset
+      // which means that the pixels were inset, ergo there were spaces between pixels.
+      // keeping this here in case I have a reason for it, 'cause I feel like I might,
+      // but I'm likely to remove it.
+
+      /*
       this.#ctx.fillRect(
         (coords[0]*this.ratio) + (this.#cursorOutlineWidth / 2),
         (coords[1]*this.ratio) + (this.#cursorOutlineWidth / 2),
         (this.ratio) - this.#cursorOutlineWidth,
         (this.ratio) - this.#cursorOutlineWidth);
+      */
+     this.#ctx.fillRect(
+        (coords[0]*this.ratio),
+        (coords[1]*this.ratio),
+        (this.ratio),
+        (this.ratio)
+      );
     }
 
     ClearCanvas() {
@@ -140,11 +167,13 @@ function App() {
      * Fully redraws the canvas
      */
     RenderCanvas() {
+      // console.log("render canvas");
       this.ClearCanvas();
 
-      for (let pixel of this.#pixels[0]) {
-        this.DrawPixel(pixel);
+      for (let i = 0; i < this.#pixels[0].length; i++) {
+        this.DrawPixel(this.#indexToCoords(i), this.#pixels[0][i]);
       }
+      // console.log("render canvas end");
     }
 
     /**
@@ -156,7 +185,6 @@ function App() {
       this.#ctx.clearRect(
         coords[0]*this.ratio, coords[1]*this.ratio,
         this.ratio, this.ratio);
-
       // end by deleting the pixel from the array
     }
 
@@ -169,11 +197,12 @@ function App() {
       let cellX, cellY;
 
       if (typeof XYCoordsOrIndex === "number") {
-        cellX, cellY = this.#indexToCoords(XYCoordsOrIndex)
-        cellX = XYCoordsOrIndex % this.ratioFactorY;
-        cellY = XYCoordsOrIndex/ this.ratioFactorY;
+        // cellX, cellY = this.#indexToCoords(XYCoordsOrIndex);
+        // cellX = XYCoordsOrIndex % this.ratioFactorY;
+        // cellY = XYCoordsOrIndex / this.ratioFactorY;
       } else {
         [cellX, cellY] = XYCoordsOrIndex;
+        this.#indexToCoords(this.#coordsToIndex(XYCoordsOrIndex));
       }
 
       this.#ctx.line = 20;
@@ -219,6 +248,13 @@ function App() {
       return [this.#mouseX, this.#mouseY];
     }
 
+    /**
+     * @return {[number, number]}
+     */
+    get CellPos() {
+      return [this.#cellX, this.#cellY];
+    }
+
     InitiateListeners() {
       RS.Renderer.addEventListener("mouseenter", (e) => {
       });
@@ -226,13 +262,18 @@ function App() {
         this.MousePos = [e.offsetX, e.offsetY];
       });
       RS.Renderer.addEventListener("mousedown", (e) => {
+        RS.painting = true;
+      });
+      RS.Renderer.addEventListener("click", (e) => {
+        RS.SetPixel(this.CellPos, RenderScene.rgbToHex(255, 0, 0));
       });
       RS.Renderer.addEventListener("mouseup", (e) => {
+        RS.painting = false;
       });
     }
 
     ShowCursor() {
-      RS.DrawCursor([this.#cellX, this.#cellY]);
+      RS.DrawCursor(this.CellPos);
     }
   }
 
